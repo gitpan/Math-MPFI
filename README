@@ -53,7 +53,7 @@ perl Makefile.pl INC="-I/path/to/gmp_includes -I/path/to/mpfr_includes -I/path/t
 ==============
 
 If your perl's Config reports that 'ivsize' is greater than or
-equal to 8, then Math::MPFR will, by default, be built assuming access
+equal to 8, then Math::MPFI will, by default, be built assuming access
 to the mpfr_*_uj and mpfr_*_sj functions. Else, access to those 
 functions is, by default, denied. You can override the default by 
 opening up the Makefile.PL and uncommenting the appropriate line (just
@@ -61,7 +61,7 @@ a few lines down from the top of the file ... the comments in that
 file should make it clear).
 
 Similarly, if your perl's Config reports that 'nvsize' is greater than
-8 then Math::MPFR will, by default, be built assuming access
+8 then Math::MPFI will, by default, be built assuming access
 to the mpfr_*_ld functions. Else, access to those functions is, 
 by default, denied. Again, you can override the default by opening up the 
 Makefile.PL and uncommenting the appropriate line.

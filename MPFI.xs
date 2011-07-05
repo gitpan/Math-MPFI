@@ -1175,7 +1175,7 @@ SV * gmp_v() {
 }
 
 SV * mpfr_v() {
-     return newSVpv(MPFR_VERSION_STRING, 0);
+     return newSVpv(mpfr_get_version(), 0);
 }
 
 /*******************************

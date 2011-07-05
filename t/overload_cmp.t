@@ -22,8 +22,14 @@ Rmpfi_set_default_prec($prec);
 
 my $ok = '';
 
-if($nan != $nan) {$ok .= 'a'}
-else { warn "1a: nan == nan on this perl\n"}
+if($] eq '5.008') {
+  warn "Skipping 1a as it might be that NaN == NaN on this build of perl";
+  $ok .= 'a';
+}
+else {
+  if($nan != $nan) {$ok .= 'a'}
+  else { warn "1a: nan == nan on this perl\n"}
+}
 
 unless($mpfi_nan == $mpfi_nan) {$ok .= 'b'}
 else {warn "1b: \$mpfi_nan == \$mpfi_nan\n"}

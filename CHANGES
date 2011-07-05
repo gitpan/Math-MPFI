@@ -1,2 +1,10 @@
-0.01 - 
-     First release.
+0.02
+ - Add documentation of gmp_v and mpfr_v (previously missed).
+ - In aab_basic.t print out the mpfr and mpc library versions being
+   used, as reported by the library in use.
+ - In MPFI.xs change mpfr_v() to return the library version instead
+   of the mpfr header version (as had previously been the case).
+ - Minor doc fix.
+
+0.01
+ - First release.

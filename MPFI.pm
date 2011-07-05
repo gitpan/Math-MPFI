@@ -6,7 +6,7 @@ require Exporter;
 *import = \&Exporter::import;
 require DynaLoader;
 
-$Math::MPFI::VERSION = '0.01';
+$Math::MPFI::VERSION = '0.02';
 
 DynaLoader::bootstrap Math::MPFI $Math::MPFI::VERSION;
 
@@ -384,7 +384,7 @@ Math::MPFI - perl interface to the MPFI (interval arithmetic) library.
    mpfi_mul().
 
    "$rop", "$op1", "$op2", etc. are Math::MPFI objects - the
-   return value of one of the Rmpc_init* functions. They are in fact 
+   return value of one of the Rmpfi_init* functions. They are in fact 
    references to mpfi structures. The "$op" variables are the operands
    and "$rop" is the variable that stores the result of the operation.
    Generally, $rop, $op1, $op2, etc. can be the same perl variable 
@@ -1104,7 +1104,18 @@ Math::MPFI - perl interface to the MPFI (interval arithmetic) library.
      exact centre, <0 if it is smaller and 0 if it is the exact centre.
 
     $str = Rmpfi_get_version ()
-     Returns the MPFI version number as a NULL terminated string.
+     Returns the version number of the mpfi library being used by
+     Math::MPFI (as a NULL terminated string).
+
+   $MPFR_version = Math::MPFI::mpfr_v();
+    $MPFR_version is set to the version of the mpfr library
+    being used by the mpfi library that Math::MPFI uses.
+    (The function is not exportable.)
+
+   $GMP_version = Math::MPFI::gmp_v();
+    $GMP_version is set to the version of the gmp library being
+    used by the mpfi library that Math::MPFI uses.
+    (The function is not exportable.)
 
    ##############
 
@@ -1146,7 +1157,7 @@ Math::MPFI - perl interface to the MPFI (interval arithmetic) library.
 
     This program is free software; you may redistribute it and/or 
     modify it under the same terms as Perl itself.
-    Copyright 2010, Sisyphus
+    Copyright 2010, 2011 Sisyphus
 
 =head1 AUTHOR
 

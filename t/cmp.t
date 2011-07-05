@@ -37,8 +37,14 @@ if($have_gmp)  {$gmp = Math::GMP->new(87654)}
 
 my $ok = '';
 
-if($nan != $nan) {$ok .= 'a'}
-else { warn "1a: nan == nan on this perl\n"}
+if($] eq '5.008') {
+  warn "Skipping 1a on this build of perl as it may be that NaN == NaN\n";
+  $ok .= 'a';
+}
+else {
+  if($nan != $nan) {$ok .= 'a'}
+  else { warn "1a: nan == nan on this perl\n"}
+}
 
 if(Rmpfi_cmp($mpfi_nan, $mpfi_nan) == 1) {$ok .= 'b'}
 else {warn "1b: Got ", Rmpfi_cmp($mpfi_nan, $mpfi_nan), "\nExpected 1\n"}

@@ -6,14 +6,14 @@ use Math::MPFI qw(:mpfi);
 print "1..4\n";
 
 print STDERR "\n# Using Math::MPFI version ", $Math::MPFI::VERSION, "\n";
-#print STDERR "# Using mpfi library version ", MPFI_VERSION_STRING, "\n";
-print STDERR "# Math::MPFR uses mpfr library version ", MPFR_VERSION_STRING, "\n";
+print STDERR "# Math::MPFI uses mpfi library version ", Rmpfi_get_version(), "\n";
+print STDERR "# Math::MPFR uses mpfr library version ", Rmpfr_get_version(), "\n";
 print STDERR "# Math::MPFI uses mpfr library version ", Math::MPFI::mpfr_v(), "\n";
 print STDERR "# Math::MPFR uses gmp library version ", Math::MPFR::gmp_v(), "\n";
 print STDERR "# Math::MPFI uses gmp library version ", Math::MPFI::gmp_v(), "\n";
 print STDERR "# Using gmp library version ", Math::MPFI::gmp_v(), "\n";
 
-if($Math::MPFI::VERSION eq '0.01') {print "ok 1\n"}
+if($Math::MPFI::VERSION eq '0.02') {print "ok 1\n"}
 else {print "not ok 1 $Math::MPFI::VERSION\n"}
 
 my $prec = 101;
