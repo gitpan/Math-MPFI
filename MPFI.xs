@@ -15,12 +15,20 @@
 #define SvUOK SvIsUV
 #endif
 
+#ifndef Newx
+#  define Newx(v,n,t) New(0,v,n,t)
+#endif
+
+#ifndef Newxz
+#  define Newxz(v,n,t) Newz(0,v,n,t)
+#endif
+
 #ifndef __gmpfr_default_rounding_mode
 #define __gmpfr_default_rounding_mode mpfr_get_default_rounding_mode()
 #endif
 
 /* Has inttypes.h been included ? */
-int _has_inttypes() {
+int _has_inttypes(void) {
 #ifdef _MSC_VER
 return 0;
 #else
@@ -32,7 +40,7 @@ return 0;
 #endif
 }
 
-int _has_longlong() {
+int _has_longlong(void) {
 #ifdef USE_64_BIT_INT
     return 1;
 #else
@@ -40,7 +48,7 @@ int _has_longlong() {
 #endif
 }
 
-int _has_longdouble() {
+int _has_longdouble(void) {
 #ifdef USE_LONG_DOUBLE
     return 1;
 #else
@@ -80,7 +88,7 @@ void _Rmpfi_set_default_prec(SV * p) {
      mpfr_set_default_prec((mp_prec_t)SvUV(p));
 }
 
-SV * Rmpfi_get_default_prec() {
+SV * Rmpfi_get_default_prec(void) {
      return newSVuv(mpfr_get_default_prec());
 }  
 
@@ -100,7 +108,7 @@ SV * Rmpfi_round_prec(mpfi_t * op, SV * prec) {
 Initialization Functions
 *******************************/
 
-SV * Rmpfi_init() {
+SV * Rmpfi_init(void) {
      mpfi_t * mpfi_t_obj;
      SV * obj_ref, * obj;
 
@@ -115,7 +123,7 @@ SV * Rmpfi_init() {
      return obj_ref;
 }
 
-SV * Rmpfi_init_nobless() {
+SV * Rmpfi_init_nobless(void) {
      mpfi_t * mpfi_t_obj;
      SV * obj_ref, * obj;
 
@@ -1141,7 +1149,7 @@ void RMPFI_ERROR (SV * msg) {
      MPFI_ERROR(SvPV_nolen(msg));
 }
 
-SV * Rmpfi_is_error() {
+SV * Rmpfi_is_error(void) {
      return newSViv(mpfi_is_error());
 }
 
@@ -1149,7 +1157,7 @@ void Rmpfi_set_error(SV * op) {
      mpfi_set_error(SvIV(op));
 }
 
-void Rmpfi_reset_error() {
+void Rmpfi_reset_error(void) {
      mpfi_reset_error();
 }
 
@@ -1170,11 +1178,11 @@ SV * _itsa(SV * a) {
      return newSVuv(0);
 }
 
-SV * gmp_v() {
+SV * gmp_v(void) {
      return newSVpv(gmp_version, 0);
 }
 
-SV * mpfr_v() {
+SV * mpfr_v(void) {
      return newSVpv(mpfr_get_version(), 0);
 }
 
@@ -2180,7 +2188,7 @@ SV * overload_sqrt(mpfi_t * p, SV * second, SV * third) {
      return obj_ref;
 }
 
-SV * Rmpfi_get_version() {
+SV * Rmpfi_get_version(void) {
      return newSVpv(mpfi_get_version(), 0);
 }
 
@@ -2435,6 +2443,38 @@ SV * overload_atan2(mpfi_t * a, SV * b, SV * third) {
 
      croak("Invalid argument supplied to Math::MPFI::overload_atan2 function");
 }
+
+SV * _MPFI_VERSION_MAJOR(void) {
+#ifdef MPFI_VERSION_MAJOR
+     return newSVuv(MPFI_VERSION_MAJOR);
+#else
+     croak("MPFI_VERSION_MAJOR not defined in mpfi.h until mpfi-1.5.1. Library version is %s", mpfi_get_version());
+#endif
+}
+
+SV * _MPFI_VERSION_MINOR(void) {
+#ifdef MPFI_VERSION_MINOR
+     return newSVuv(MPFI_VERSION_MINOR);
+#else
+     croak("MPFI_VERSION_MINOR not defined in mpfi.h until mpfi-1.5.1. Library version is %s", mpfi_get_version());
+#endif
+}
+  
+SV * _MPFI_VERSION_PATCHLEVEL(void) {
+#ifdef MPFI_VERSION_PATCHLEVEL
+     return newSVuv(MPFI_VERSION_PATCHLEVEL);
+#else
+     croak("MPFI_VERSION_PATCHLEVEL not defined in mpfi.h until mpfi-1.5.1. Library version is %s", mpfi_get_version());
+#endif
+}
+
+SV * _MPFI_VERSION_STRING(void) {
+#ifdef MPFI_VERSION_STRING
+     return newSVpv(MPFI_VERSION_STRING, 0);
+#else
+     croak("MPFI_VERSION_STRING not defined in mpfi.h until mpfi-1.5.1. Library version is %s", mpfi_get_version());
+#endif
+}
 MODULE = Math::MPFI	PACKAGE = Math::MPFI	
 
 PROTOTYPES: DISABLE
@@ -2442,12 +2482,15 @@ PROTOTYPES: DISABLE
 
 int
 _has_inttypes ()
+		
 
 int
 _has_longlong ()
+		
 
 int
 _has_longdouble ()
+		
 
 SV *
 RMPFI_BOTH_ARE_EXACT (ret)
@@ -2483,6 +2526,7 @@ _Rmpfi_set_default_prec (p)
 
 SV *
 Rmpfi_get_default_prec ()
+		
 
 void
 Rmpfi_set_prec (op, prec)
@@ -2512,9 +2556,11 @@ Rmpfi_round_prec (op, prec)
 
 SV *
 Rmpfi_init ()
+		
 
 SV *
 Rmpfi_init_nobless ()
+		
 
 SV *
 Rmpfi_init2 (prec)
@@ -3657,6 +3703,7 @@ RMPFI_ERROR (msg)
 
 SV *
 Rmpfi_is_error ()
+		
 
 void
 Rmpfi_set_error (op)
@@ -3676,6 +3723,7 @@ Rmpfi_set_error (op)
 
 void
 Rmpfi_reset_error ()
+		
 	PREINIT:
 	I32* temp;
 	PPCODE:
@@ -3695,9 +3743,11 @@ _itsa (a)
 
 SV *
 gmp_v ()
+		
 
 SV *
 mpfr_v ()
+		
 
 SV *
 overload_gte (a, b, third)
@@ -3785,6 +3835,7 @@ overload_sqrt (p, second, third)
 
 SV *
 Rmpfi_get_version ()
+		
 
 SV *
 Rmpfi_const_catalan (rop)
@@ -3902,4 +3953,20 @@ overload_atan2 (a, b, third)
 	mpfi_t *	a
 	SV *	b
 	SV *	third
+
+SV *
+_MPFI_VERSION_MAJOR ()
+		
+
+SV *
+_MPFI_VERSION_MINOR ()
+		
+
+SV *
+_MPFI_VERSION_PATCHLEVEL ()
+		
+
+SV *
+_MPFI_VERSION_STRING ()
+		
 

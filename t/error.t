@@ -57,7 +57,7 @@ if($set) {
   unless (Rmpfi_is_error()) {print "ok 5\n"}
   else {
     warn "5: Error number is set\n";
-    print "not ok 3\n";
+    print "not ok 5\n";
   }
 }
 else {

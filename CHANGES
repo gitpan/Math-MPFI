@@ -1,3 +1,11 @@
+0.03
+ - Remove 'not' from overloads. Apparently achieved nothing anyway, and 5.16
+   warns that it's invalid.
+ - Add MPFI_VERSION_MAJOR, MPFI_VERSION_MAJOR, MPFI_VERSION_PATCHLEVEL
+   and MPFI_VERSION_STRING (mpfi-1.5.1 and later only).
+ - In aab_basic.t, check that library and header versions match
+   (mpfi-1.5.1 and later only).
+
 0.02
  - Add documentation of gmp_v and mpfr_v (previously missed).
  - In aab_basic.t print out the mpfr and mpc library versions being

@@ -6,7 +6,7 @@ require Exporter;
 *import = \&Exporter::import;
 require DynaLoader;
 
-$Math::MPFI::VERSION = '0.02';
+$Math::MPFI::VERSION = '0.03';
 
 DynaLoader::bootstrap Math::MPFI $Math::MPFI::VERSION;
 
@@ -26,6 +26,9 @@ DynaLoader::bootstrap Math::MPFI $Math::MPFI::VERSION;
     use constant  _MATH_GMP_T    => 9;
     use constant  _MATH_MPC_T    => 10;
     use constant  _MATH_MPFI_T    => 11;
+
+    use subs qw(MPFI_VERSION_MAJOR MPFI_VERSION_MINOR
+                MPFI_VERSION_PATCHLEVEL MPFI_VERSION_STRING);
 
     use overload
      '+'	=> \&overload_add,
@@ -52,7 +55,6 @@ DynaLoader::bootstrap Math::MPFI $Math::MPFI::VERSION;
      'exp'      => \&overload_exp,
      'abs'      => \&overload_abs,
      'bool'     => \&overload_true,
-     'not'      => \&overload_not,
      '!'        => \&overload_not;
 
 @Math::MPFI::EXPORT = ();
@@ -61,7 +63,8 @@ BOTH_ENDPOINTS_EXACT LEFT_ENDPOINT_INEXACT
 RIGHT_ENDPOINT_INEXACT BOTH_ENDPOINTS_INEXACT
 RMPFI_BOTH_ARE_EXACT RMPFI_LEFT_IS_INEXACT
 RMPFI_RIGHT_IS_INEXACT RMPFI_BOTH_ARE_INEXACT
-RMPFI_ERROR
+RMPFI_ERROR MPFI_VERSION_MAJOR
+MPFI_VERSION_MINOR MPFI_VERSION_PATCHLEVEL MPFI_VERSION_STRING
 Rmpfi_set_default_prec Rmpfi_get_default_prec
 Rmpfi_abs Rmpfi_acos Rmpfi_acosh Rmpfi_add Rmpfi_add_d Rmpfi_add_fr
 Rmpfi_add_q Rmpfi_add_si Rmpfi_add_ui Rmpfi_add_z Rmpfi_alea
@@ -114,7 +117,8 @@ BOTH_ENDPOINTS_EXACT LEFT_ENDPOINT_INEXACT
 RIGHT_ENDPOINT_INEXACT BOTH_ENDPOINTS_INEXACT
 RMPFI_BOTH_ARE_EXACT RMPFI_LEFT_IS_INEXACT
 RMPFI_RIGHT_IS_INEXACT RMPFI_BOTH_ARE_INEXACT
-RMPFI_ERROR
+RMPFI_ERROR MPFI_VERSION_MAJOR
+MPFI_VERSION_MINOR MPFI_VERSION_PATCHLEVEL MPFI_VERSION_STRING
 Rmpfi_set_default_prec Rmpfi_get_default_prec
 Rmpfi_abs Rmpfi_acos Rmpfi_acosh Rmpfi_add Rmpfi_add_d Rmpfi_add_fr
 Rmpfi_add_q Rmpfi_add_si Rmpfi_add_ui Rmpfi_add_z Rmpfi_alea
@@ -333,6 +337,11 @@ sub overload_spaceship {
     if(overload_gt(@_)) {return 1}
     if(overload_lt(@_)) {return -1}
 }
+
+sub MPFI_VERSION_MAJOR {return _MPFI_VERSION_MAJOR()}
+sub MPFI_VERSION_MINOR {return _MPFI_VERSION_MINOR()}
+sub MPFI_VERSION_PATCHLEVEL {return _MPFI_VERSION_PATCHLEVEL()}
+sub MPFI_VERSION_STRING {return _MPFI_VERSION_STRING()}
 
 1;
 
@@ -875,9 +884,9 @@ Math::MPFI - perl interface to the MPFI (interval arithmetic) library.
     overlap.  MPFI proposes default comparison functions, but they can
     easily be customized according to the user's needs.  The default
     comparison functions return a positive value if the first interval has
-    all its elements strictly lower than all elements of the second one, a
+    all its elements strictly greater than all elements of the second one, a
     negative value if the first interval has all its elements strictly
-    greater than all elements of the second one and 0 otherwise, i.e. if
+    lower than all elements of the second one and 0 otherwise, i.e. if
     they overlap or if one is contained in the other.
 
     $si = Rmpfi_cmp ($op1, $op2);
@@ -1148,7 +1157,7 @@ Math::MPFI - perl interface to the MPFI (interval arithmetic) library.
      **, **=, sqrt
      atan2, cos, sin, 
      log, exp,
-     abs, bool, not, !
+     abs, bool, !
 
 ###############################################
 ###############################################    
