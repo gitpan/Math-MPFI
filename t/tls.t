@@ -7,11 +7,11 @@ my $cut = eval 'use threads; 1';
 print "1..1\n";
 
 print  "# Using Math::MPFI version ", $Math::MPFI::VERSION, "\n";
-print  "# Using mpfr library version ", MPFR_VERSION_STRING, "\n";
+print  "# Using mpfr library version ", Math::MPFR::MPFR_VERSION_STRING, "\n";
 print  "# Using gmp library version ", Math::MPFI::gmp_v(), "\n";
 
 my ($tls, $ok, $pid);
-eval {$tls =  Math::MPFI::Rmpfr_buildopt_tls_p();};
+eval {$tls =  Math::MPFR::Rmpfr_buildopt_tls_p();};
 
 my $cut_mess = $cut ? '' : "ithreads not available with this build of perl\n";
 my $tls_mess = $tls ? '' :

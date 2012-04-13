@@ -13,7 +13,7 @@ print STDERR "# Math::MPFR uses gmp library version ", Math::MPFR::gmp_v(), "\n"
 print STDERR "# Math::MPFI uses gmp library version ", Math::MPFI::gmp_v(), "\n";
 print STDERR "# Using gmp library version ", Math::MPFI::gmp_v(), "\n";
 
-if($Math::MPFI::VERSION eq '0.03') {print "ok 1\n"}
+if($Math::MPFI::VERSION eq '0.04') {print "ok 1\n"}
 else {print "not ok 1 $Math::MPFI::VERSION\n"}
 
 my $prec = 101;
