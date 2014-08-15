@@ -53,7 +53,7 @@ if($mt) {
 else {
   warn "Skipping Test 2 because Test 1 failed\n";
   print "ok 2\n";
-} 
+}
 
 # $rop is [-23, 17]
 

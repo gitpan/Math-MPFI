@@ -6,9 +6,10 @@ require Exporter;
 *import = \&Exporter::import;
 require DynaLoader;
 
-$Math::MPFI::VERSION = '0.04';
+our $VERSION = '0.05';
+#$VERSION = eval $VERSION;
 
-DynaLoader::bootstrap Math::MPFI $Math::MPFI::VERSION;
+DynaLoader::bootstrap Math::MPFI $VERSION;
 
     use constant BOTH_ENDPOINTS_EXACT => 0;
     use constant LEFT_ENDPOINT_INEXACT => 1;
@@ -50,7 +51,7 @@ DynaLoader::bootstrap Math::MPFI $Math::MPFI::VERSION;
      '""'	=> \&overload_string,
      'atan2'    => \&overload_atan2,
      'cos'      => \&overload_cos,
-     'sin'      => \&overload_sin, 
+     'sin'      => \&overload_sin,
      'log'      => \&overload_log,
      'exp'      => \&overload_exp,
      'abs'      => \&overload_abs,
@@ -173,14 +174,14 @@ sub dl_load_flags {0} # Prevent DynaLoader from complaining and croaking
 
 sub new {
     # This function caters for 2 possibilities:
-    # 1) that 'new' has been called OOP style - in which 
+    # 1) that 'new' has been called OOP style - in which
     #    case there will be a maximum of 3 args
     # 2) that 'new' has been called as a function - in
     #    which case there will be a maximum of 2 args.
     # If there are no args, then we just want to return an
     # initialized Math::MPFI object
     if(!@_) {return Rmpfi_init()}
-   
+
     if(@_ > 3) {die "Too many arguments supplied to new()"}
 
     # If 'new' has been called OOP style, the first arg is the string
@@ -192,7 +193,7 @@ sub new {
     if(!ref($_[0]) && $_[0] eq "Math::MPFI") {
       shift;
       if(!@_) {return Rmpfi_init()}
-      } 
+      }
 
     # @_ can now contain a maximum of 2 args - the value, and iff the value is
     # a string, (optionally) the base of the numeric string.
@@ -286,7 +287,7 @@ sub new {
       return $ret[0];
     }
 
-    die "new() was passed an invalid argument";  
+    die "new() was passed an invalid argument";
 }
 
 sub Rmpfi_out_str {
@@ -393,11 +394,11 @@ Math::MPFI - perl interface to the MPFI (interval arithmetic) library.
    mpfi_mul().
 
    "$rop", "$op1", "$op2", etc. are Math::MPFI objects - the
-   return value of one of the Rmpfi_init* functions. They are in fact 
+   return value of one of the Rmpfi_init* functions. They are in fact
    references to mpfi structures. The "$op" variables are the operands
    and "$rop" is the variable that stores the result of the operation.
-   Generally, $rop, $op1, $op2, etc. can be the same perl variable 
-   referencing the same mpfi structure, though often they will be 
+   Generally, $rop, $op1, $op2, etc. can be the same perl variable
+   referencing the same mpfi structure, though often they will be
    distinct perl variables referencing distinct mpfi structures.
    Eg something like Rmpfi_add($r1, $r1, $r1),
    where $r1 *is* the same reference to the same mpfi structure,
@@ -424,15 +425,15 @@ Math::MPFI - perl interface to the MPFI (interval arithmetic) library.
 
    "$p" is the value for precision.
 
-   "$q" is a Math::GMPq object (rational). You'll need Nath::GMPq 
+   "$q" is a Math::GMPq object (rational). You'll need Nath::GMPq
           installed and loaded in order to create $q.
 
    "$z" is a Math::GMP or Math::GMPz object (integer). You'll need
         Math::GMPz or Math::GMP installed and loaded in order to
-        create $z.  
+        create $z.
 
    "$fr" is a Math::MPFR object (floating point). Math::MPFR is a
-         pre-requisite module for Math::MPFI.) 
+         pre-requisite module for Math::MPFI.)
 
    #########
 
@@ -443,7 +444,7 @@ Math::MPFI - perl interface to the MPFI (interval arithmetic) library.
      be *exactly* $p bits. The precision of a variable means the
      number of bits used to store the mantissas of its endpoints.
      All subsequent calls to `mpfi_init' will use this precision,
-     but previously initialized variables are unaffected. 
+     but previously initialized variables are unaffected.
      This default precision is set to 53 bits initially.
      The precision $p can be any integer between `MPFR_PREC_MIN' and
      `MPFR_PREC_MAX'.
@@ -488,7 +489,7 @@ Math::MPFI - perl interface to the MPFI (interval arithmetic) library.
     $rop = Rmpfi_init_nobless();
      Initializes $op, and sets its value to NaN, to prevent from using an
      unassigned variable inadvertently. (The "_nobless" version of the
-     function will create an unblessed variable. I don't know why you 
+     function will create an unblessed variable. I don't know why you
      would want to use it, but you can if you want.) The precision of $op
      is the default precision, which can be changed by a call to
      `Rmpfi_set_default_prec'.
@@ -499,8 +500,8 @@ Math::MPFI - perl interface to the MPFI (interval arithmetic) library.
      of its endpoints) to be *exactly* $prec bits, and sets its
      endpoints to NaN. (The "_nobless" version of the function will create
      an unblessed variable. I don't know why you would want to use it, but
-     you can if you want.) To change the precision of a variable which has 
-     already been initialized, use `Rmpfi_set_prec' instead, or 
+     you can if you want.) To change the precision of a variable which has
+     already been initialized, use `Rmpfi_set_prec' instead, or
     `Rmpfi_round_prec' if you want to keep its value.
 
     Rmpfi_clear ($op)
@@ -568,7 +569,7 @@ Math::MPFI - perl interface to the MPFI (interval arithmetic) library.
     ($rop, $si) = Rmpfi_init_set_z_nobless ($z);
     ($rop, $si) = Rmpfi_init_set_q_nobless ($q);
     ($rop, $si) = Rmpfi_init_set_fr_nobless ($fr);
-     Initializes $rop and sets its value from the 1st arg, outward 
+     Initializes $rop and sets its value from the 1st arg, outward
      rounded so that the 1st arg is contained in $rop. The precision
      of $rop will be taken from the active default precision, as set
      by `Rmpfi_set_default_prec'. (The "_nobless" versions of the
@@ -897,7 +898,7 @@ Math::MPFI - perl interface to the MPFI (interval arithmetic) library.
                                    # or Math::GMPz object
     $si = Rmpfi_cmp_q ($op, $q);   # $q is a Math::GMP object
     $si = Rmpfi_cmp_fr ($op, $fr); # $fr is a Math::MPFR object
-     Compares $op and the 2nd arg.  Return a positive value if 
+     Compares $op and the 2nd arg.  Return a positive value if
      $op > 2nd arg, zero if $op overlaps or contains the 2nd arg, and a
      negative value if $op < 2nd arg.
      In case one of the operands is invalid (which is represented by at
@@ -1152,19 +1153,19 @@ Math::MPFI - perl interface to the MPFI (interval arithmetic) library.
     Currently, the only overloaded operators are:
      +, -, *, /, +=, -=, *=, /=,
      >, >=, <, <=, <=>,
-     ==, !=, 
+     ==, !=,
      "", =,
      **, **=, sqrt
-     atan2, cos, sin, 
+     atan2, cos, sin,
      log, exp,
      abs, bool, !
 
 ###############################################
-###############################################    
+###############################################
 
 =head1 LICENSE
 
-    This program is free software; you may redistribute it and/or 
+    This program is free software; you may redistribute it and/or
     modify it under the same terms as Perl itself.
     Copyright 2010, 2011 Sisyphus
 

@@ -1,3 +1,15 @@
+0.05
+ - Alter the way that strEQ gets hold of HvNAME(SvSTASH(SvRV(sv))) - so that -Wall
+    doesn't emit "null argument" warnings. (Thanks Daniel Kahn Gillmor.)
+ - _has_inttypes() no longer checks for whether USE_LONG_DOUBLE is defined.
+   (Was harmless ... but didn't make much sense.)
+ - Define PERL_NO_GET_CONTEXT
+ - Tweak to Math::MPFI::gmp_v()
+ - Add metadata to Makefile.PL
+
+0.04
+ - Fix t/tls.t
+
 0.03
  - Remove 'not' from overloads. Apparently achieved nothing anyway, and 5.16
    warns that it's invalid.

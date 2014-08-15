@@ -45,7 +45,7 @@ my $mpfi2 = Math::MPFI->new('0.3');
 # Precision of $mpfi3 needs to be less than that of
 # C double. Othewrwise the test involving $mpfi3 can
 # fail (and rightly so).
-my $mpfi3 = Rmpfi_init2(50); 
+my $mpfi3 = Rmpfi_init2(50);
 Rmpfi_set_d($mpfi3, $double);
 
 my $mpfiui = Math::MPFI->new(117);
@@ -57,7 +57,7 @@ unless(Rmpfi_is_strictly_inside($mpfi1, $mpfi1)) {$ok .= 'a'}
 else {warn "1a: \$mpfi1 is strictly inside \$mpfi1\n"}
 
 if(Rmpfi_is_inside($mpfi1, $mpfi1)) {$ok .= 'b'}
-else {warn "1b: \$mpfi1 is not inside \$mpfi1\n"} 
+else {warn "1b: \$mpfi1 is not inside \$mpfi1\n"}
 
 unless(Rmpfi_is_inside($mpfi2, $mpfi1)) {$ok .= 'c'}
 else {warn "1c: \$mpfi2 is inside \$mpfi1\n"}
@@ -72,13 +72,13 @@ unless(Rmpfi_is_strictly_inside($mpfi1, $mpfi2)) {$ok .= 'f'}
 else {warn "1f: \$mpfi1 is strictly inside \$mpfi2\n"}
 
 unless(Rmpfi_is_inside_d($double, $mpfi1)) {$ok .= 'g'}
-else {warn "1g: \$double is inside \$mpfi1\n"} 
+else {warn "1g: \$double is inside \$mpfi1\n"}
 
 if(Rmpfi_is_inside_d($double, $mpfi3)) {$ok .= 'h'}
-else {warn "1h: \$double ($double) is not inside \$mpfi3 ($mpfi3)\n"} 
+else {warn "1h: \$double ($double) is not inside \$mpfi3 ($mpfi3)\n"}
 
 if(Rmpfi_is_inside_ui($ui, $mpfiui)) {$ok .= 'i'}
-else {warn "1i: \$ui ($ui) is not inside \$mpfiui ($mpfiui)\n"} 
+else {warn "1i: \$ui ($ui) is not inside \$mpfiui ($mpfiui)\n"}
 
 unless(Rmpfi_is_inside_ui($ui, $mpfisi)) {$ok .= 'I'}
 else {warn "1I: \$ui ($ui) is inside \$mpfisi ($mpfisi)\n"}
@@ -180,7 +180,7 @@ if($out1 == $rop2) {print "ok 6\n"}
 else {
   warn "\$out1: $out1\n\$rop2: $rop2\n";
   print "not ok 6\n";
-} 
+}
 
 my $inc = Math::MPFI->new(1);
 my $dec = Math::MPFI->new(-1);

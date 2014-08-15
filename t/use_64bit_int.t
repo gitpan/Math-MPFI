@@ -45,7 +45,7 @@ if(Math::MPFI::_has_longlong()) {
     print "not ok 3\n";
   }
 
- 
+
   $rop = $rop - $bi;
   $fr = $fr - $bi;
   if(!Rmpfi_cmp_fr($rop, $fr)) {print "ok 4\n"}
@@ -83,7 +83,7 @@ if(Math::MPFI::_has_longlong()) {
     print "not ok 7\n";
   }
 
- 
+
   $rop = $rop / $bi;
   $fr = $fr / $bi;
   if(!Rmpfi_cmp_fr($rop, $fr)) {print "ok 8\n"}

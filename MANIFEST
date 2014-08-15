@@ -29,6 +29,7 @@ t/overload_add.t
 t/overload_bool.t
 t/overload_cmp.t
 t/overload_mul.t
+t/pod.t
 t/pi.t
 t/raise_2exp.t
 t/root.t
@@ -37,3 +38,5 @@ t/trig.t
 t/urandom.t
 t/use_long_double.t
 t/use_64bit_int.t
+META.yml                                 Module YAML meta-data (added by MakeMaker)
+META.json                                Module JSON meta-data (added by MakeMaker)

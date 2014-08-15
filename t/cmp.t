@@ -251,7 +251,7 @@ else {
 if(Rmpfi_cmp_fr($mpfi, $fr - 1) > 0) {$ok .= 'x'}
 else {
   warn "2x: Got: ", Rmpfi_cmp_fr($mpfi, $fr - 1), "\nExpected a positive number\n";
-} 
+}
 
 if($ok eq 'abcdefghijklmnopqrstuvwx') {print "ok 2\n"}
 else {

@@ -17,7 +17,7 @@ $use_long_double = 0;# Let perl decide whether to include 'long double' support
 
 my $defines = $] < 5.008 ? "-DOLDPERL" : "-DNEWPERL";
 
-if($use_64_bit_int == -1) {}                                
+if($use_64_bit_int == -1) {}
 elsif($use_64_bit_int == 1) {$defines .= " -DUSE_64_BIT_INT"}
 else {
   unless($Config::Config{ivsize} < 8) {
@@ -45,14 +45,26 @@ $defines =~ /-DUSE_LONG_DOUBLE/ ? print "Building with 'long double' support\n" 
 
 print "If this is wrong, see the \"64-bit support\" section in the README\n\n";
 
-my %options = (       
+my %options = (
   NAME => 'Math::MPFI',
   INC => '',
   AUTHOR => 'Sisyphus (sisyphus at (@) cpan dot (.) org)',
   LIBS => '-lmpfi -lmpfr -lgmp',
   VERSION_FROM => 'MPFI.pm',
   PREREQ_PM => {'Math::MPFR' => '2.01'},
+  LICENSE  => 'perl',
   DEFINE   => $defines,
+  clean   => { FILES => 'save_child_setting.txt' },
+  META_MERGE => {
+   'meta-spec' => { version => 2 },
+    resources => {
+      repository => {
+        type => 'git',
+        url => 'https://github.com/sisyphus/math-mpfi.git',
+        web => 'https://github.com/sisyphus/math-mpfi',
+      },
+    },
+  },
 );
 
 WriteMakefile(%options);
