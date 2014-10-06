@@ -11,7 +11,7 @@
 #include "perl.h"
 #include "XSUB.h"
 
-#if defined USE_64_BIT_INT
+#if defined MATH_MPFI_NEED_LONG_LONG_INT
 #ifndef _MSC_VER
 #include <inttypes.h>
 #endif
@@ -19,6 +19,19 @@
 
 #include <mpfi.h>
 #include <mpfi_io.h>
+#include <float.h>
+
+#ifdef MPFR_WANT_FLOAT128
+#include <quadmath.h>
+#ifdef NV_IS_FLOAT128
+#define CAN_PASS_FLOAT128
+#endif
+#ifdef __MINGW64__
+typedef __float128 float128 __attribute__ ((aligned(8)));
+#else
+typedef __float128 float128;
+#endif
+#endif
 
 #ifdef OLDPERL
 #define SvUOK SvIsUV
@@ -38,13 +51,13 @@
 
 /* Has inttypes.h been included ?
               &&
- Do we have USE_64_BIT_INT ? */
+ Do we have MATH_MPFI_NEED_LONG_LONG_INT ? */
 
 int _has_inttypes(void) {
 #ifdef _MSC_VER
 return 0;
 #else
-#if defined USE_64_BIT_INT
+#if defined MATH_MPFI_NEED_LONG_LONG_INT
 return 1;
 #else
 return 0;
@@ -53,7 +66,7 @@ return 0;
 }
 
 int _has_longlong(void) {
-#ifdef USE_64_BIT_INT
+#ifdef MATH_MPFI_NEED_LONG_LONG_INT
     return 1;
 #else
     return 0;
@@ -66,6 +79,14 @@ int _has_longdouble(void) {
 #else
     return 0;
 #endif
+}
+
+int _ivsize_bits(void) {
+   int ret = 0;
+#ifdef IVSIZE_BITS
+   ret = IVSIZE_BITS;
+#endif
+   return ret;  
 }
 
 /*******************************
@@ -102,7 +123,7 @@ void _Rmpfi_set_default_prec(pTHX_ SV * p) {
 
 SV * Rmpfi_get_default_prec(pTHX) {
      return newSVuv(mpfr_get_default_prec());
-}
+}  
 
 void Rmpfi_set_prec(pTHX_ mpfi_t * op, SV * prec) {
      mpfi_set_prec(*op, (mp_prec_t)SvUV(prec));
@@ -1215,61 +1236,73 @@ SV * overload_gte(pTHX_ mpfi_t * a, SV * b, SV * third) {
 
      if(mpfi_nan_p(*a)) return newSViv(0);
 
-#ifndef USE_64_BIT_INT
+#ifndef MATH_MPFI_NEED_LONG_LONG_INT
      if(SvUOK(b)) {
        ret = mpfi_cmp_ui(*a, SvUV(b));
        if(third == &PL_sv_yes) ret *= -1;
        if(ret >= 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(SvIOK(b)) {
        ret = mpfi_cmp_si(*a, SvIV(b));
        if(third == &PL_sv_yes) ret *= -1;
        if(ret >= 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 #else
      if(SvUOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_uj(t, SvUV(b), __gmpfr_default_rounding_mode);
        ret = mpfi_cmp_fr(*a, t);
        if(third == &PL_sv_yes) ret *= -1;
        mpfr_clear(t);
        if(ret >= 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(SvIOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_sj(t, SvIV(b), __gmpfr_default_rounding_mode);
        ret = mpfi_cmp_fr(*a, t);
        if(third == &PL_sv_yes) ret *= -1;
        mpfr_clear(t);
        if(ret >= 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
+
 #endif
 
-#ifndef USE_LONG_DOUBLE
      if(SvNOK(b)) {
-       if(SvNV(b) != SvNV(b)) return 0;
+       if(SvNV(b) != SvNV(b)) return 0; /* NaN */
+
+#ifndef USE_LONG_DOUBLE
+
        ret = mpfi_cmp_d(*a, SvNV(b));
        if(third == &PL_sv_yes) ret *= -1;
-       if(ret >= 0) return newSViv(1);
-       return newSViv(0);
-       }
-#else
-     if(SvNOK(b)) {
-       if(SvNV(b) != SvNV(b)) return 0;
-       mpfr_init_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
+
+
+#elif !defined(CAN_PASS_FLOAT128)
+
+       mpfr_init2(t, LDBL_MANT_DIG);
+       mpfr_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
        ret = mpfi_cmp_fr(*a, t);
        if(third == &PL_sv_yes) ret *= -1;
        mpfr_clear(t);
+
+#else
+
+       mpfr_init2(t, FLT128_MANT_DIG);
+       mpfr_set_float128(t, SvNV(b), __gmpfr_default_rounding_mode);
+       ret = mpfi_cmp_fr(*a, t);
+       if(third == &PL_sv_yes) ret *= -1;
+       mpfr_clear(t);
+
+#endif
+
        if(ret >= 0) return newSViv(1);
        return newSViv(0);
      }
-#endif
 
      if(SvPOK(b)) {
        if(mpfr_init_set_str(t, (char *)SvPV_nolen(b), 0, __gmpfr_default_rounding_mode))
@@ -1279,7 +1312,7 @@ SV * overload_gte(pTHX_ mpfi_t * a, SV * b, SV * third) {
        mpfr_clear(t);
        if(ret >= 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(sv_isobject(b)) {
        const char *h = HvNAME(SvSTASH(SvRV(b)));
@@ -1287,8 +1320,8 @@ SV * overload_gte(pTHX_ mpfi_t * a, SV * b, SV * third) {
          ret = mpfi_cmp(*a, *(INT2PTR(mpfi_t *, SvIV(SvRV(b)))));
          if(ret >= 0) return newSViv(1);
          return newSViv(0);
-         }
        }
+     }
 
      croak("%s", "Invalid argument supplied to Math::MPFI::overload_gte");
 }
@@ -1299,54 +1332,34 @@ SV * overload_lte(pTHX_ mpfi_t * a, SV * b, SV * third) {
 
      if(mpfi_nan_p(*a)) return newSViv(0);
 
-#ifndef USE_64_BIT_INT
+#ifndef MATH_MPFI_NEED_LONG_LONG_INT
      if(SvUOK(b)) {
        ret = mpfi_cmp_ui(*a, SvUV(b));
        if(third == &PL_sv_yes) ret *= -1;
        if(ret <= 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(SvIOK(b)) {
        ret = mpfi_cmp_si(*a, SvIV(b));
        if(third == &PL_sv_yes) ret *= -1;
        if(ret <= 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 #else
      if(SvUOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_uj(t, SvUV(b), __gmpfr_default_rounding_mode);
        ret = mpfi_cmp_fr(*a, t);
        if(third == &PL_sv_yes) ret *= -1;
        mpfr_clear(t);
        if(ret <= 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(SvIOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_sj(t, SvIV(b), __gmpfr_default_rounding_mode);
-       ret = mpfi_cmp_fr(*a, t);
-       if(third == &PL_sv_yes) ret *= -1;
-       mpfr_clear(t);
-       if(ret <= 0) return newSViv(1);
-       return newSViv(0);
-       }
-#endif
-
-#ifndef USE_LONG_DOUBLE
-     if(SvNOK(b)) {
-       if(SvNV(b) != SvNV(b)) return 0;
-       ret = mpfi_cmp_d(*a, SvNV(b));
-       if(third == &PL_sv_yes) ret *= -1;
-       if(ret <= 0) return newSViv(1);
-       return newSViv(0);
-       }
-#else
-     if(SvNOK(b)) {
-       if(SvNV(b) != SvNV(b)) return 0;
-       mpfr_init_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
        ret = mpfi_cmp_fr(*a, t);
        if(third == &PL_sv_yes) ret *= -1;
        mpfr_clear(t);
@@ -1354,6 +1367,36 @@ SV * overload_lte(pTHX_ mpfi_t * a, SV * b, SV * third) {
        return newSViv(0);
      }
 #endif
+
+     if(SvNOK(b)) {
+       if(SvNV(b) != SvNV(b)) return 0;
+
+#ifndef USE_LONG_DOUBLE
+
+       ret = mpfi_cmp_d(*a, SvNV(b));
+       if(third == &PL_sv_yes) ret *= -1;
+
+#elif !defined(CAN_PASS_FLOAT128)
+
+       mpfr_init2(t, LDBL_MANT_DIG);
+       mpfr_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
+       ret = mpfi_cmp_fr(*a, t);
+       if(third == &PL_sv_yes) ret *= -1;
+       mpfr_clear(t);
+
+#else
+
+       mpfr_init2(t, FLT128_MANT_DIG);
+       mpfr_set_float128(t, SvNV(b), __gmpfr_default_rounding_mode);
+       ret = mpfi_cmp_fr(*a, t);
+       if(third == &PL_sv_yes) ret *= -1;
+       mpfr_clear(t);
+
+#endif
+
+       if(ret <= 0) return newSViv(1);
+       return newSViv(0);
+     }
 
      if(SvPOK(b)) {
        if(mpfr_init_set_str(t, (char *)SvPV_nolen(b), 0, __gmpfr_default_rounding_mode))
@@ -1363,7 +1406,7 @@ SV * overload_lte(pTHX_ mpfi_t * a, SV * b, SV * third) {
        mpfr_clear(t);
        if(ret <= 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(sv_isobject(b)) {
        const char *h = HvNAME(SvSTASH(SvRV(b)));
@@ -1371,8 +1414,8 @@ SV * overload_lte(pTHX_ mpfi_t * a, SV * b, SV * third) {
          ret = mpfi_cmp(*a, *(INT2PTR(mpfi_t *, SvIV(SvRV(b)))));
          if(ret <= 0) return newSViv(1);
          return newSViv(0);
-         }
        }
+     }
 
      croak("%s", "Invalid argument supplied to Math::MPFI::overload_lte");
 }
@@ -1383,54 +1426,34 @@ SV * overload_gt(pTHX_ mpfi_t * a, SV * b, SV * third) {
 
      if(mpfi_nan_p(*a)) return newSViv(0);
 
-#ifndef USE_64_BIT_INT
+#ifndef MATH_MPFI_NEED_LONG_LONG_INT
      if(SvUOK(b)) {
        ret = mpfi_cmp_ui(*a, SvUV(b));
        if(third == &PL_sv_yes) ret *= -1;
        if(ret > 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(SvIOK(b)) {
        ret = mpfi_cmp_si(*a, SvIV(b));
        if(third == &PL_sv_yes) ret *= -1;
        if(ret > 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 #else
      if(SvUOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_uj(t, SvUV(b), __gmpfr_default_rounding_mode);
        ret = mpfi_cmp_fr(*a, t);
        if(third == &PL_sv_yes) ret *= -1;
        mpfr_clear(t);
        if(ret > 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(SvIOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_sj(t, SvIV(b), __gmpfr_default_rounding_mode);
-       ret = mpfi_cmp_fr(*a, t);
-       if(third == &PL_sv_yes) ret *= -1;
-       mpfr_clear(t);
-       if(ret > 0) return newSViv(1);
-       return newSViv(0);
-       }
-#endif
-
-#ifndef USE_LONG_DOUBLE
-     if(SvNOK(b)) {
-       if(SvNV(b) != SvNV(b)) return 0;
-       ret = mpfi_cmp_d(*a, SvNV(b));
-       if(third == &PL_sv_yes) ret *= -1;
-       if(ret > 0) return newSViv(1);
-       return newSViv(0);
-       }
-#else
-     if(SvNOK(b)) {
-       if(SvNV(b) != SvNV(b)) return 0;
-       mpfr_init_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
        ret = mpfi_cmp_fr(*a, t);
        if(third == &PL_sv_yes) ret *= -1;
        mpfr_clear(t);
@@ -1438,6 +1461,36 @@ SV * overload_gt(pTHX_ mpfi_t * a, SV * b, SV * third) {
        return newSViv(0);
      }
 #endif
+
+     if(SvNOK(b)) {
+       if(SvNV(b) != SvNV(b)) return 0;
+
+#ifndef USE_LONG_DOUBLE
+
+       ret = mpfi_cmp_d(*a, SvNV(b));
+       if(third == &PL_sv_yes) ret *= -1;
+
+#elif !defined(CAN_PASS_FLOAT128)
+
+       mpfr_init2(t, LDBL_MANT_DIG);
+       mpfr_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
+       ret = mpfi_cmp_fr(*a, t);
+       if(third == &PL_sv_yes) ret *= -1;
+       mpfr_clear(t);
+
+#else
+
+       mpfr_init2(t, FLT128_MANT_DIG);
+       mpfr_set_float128(t, SvNV(b), __gmpfr_default_rounding_mode);
+       ret = mpfi_cmp_fr(*a, t);
+       if(third == &PL_sv_yes) ret *= -1;
+       mpfr_clear(t);
+
+#endif
+
+       if(ret > 0) return newSViv(1);
+       return newSViv(0);
+     }
 
      if(SvPOK(b)) {
        if(mpfr_init_set_str(t, (char *)SvPV_nolen(b), 0, __gmpfr_default_rounding_mode))
@@ -1447,7 +1500,7 @@ SV * overload_gt(pTHX_ mpfi_t * a, SV * b, SV * third) {
        mpfr_clear(t);
        if(ret > 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(sv_isobject(b)) {
        const char *h = HvNAME(SvSTASH(SvRV(b)));
@@ -1455,8 +1508,8 @@ SV * overload_gt(pTHX_ mpfi_t * a, SV * b, SV * third) {
          ret = mpfi_cmp(*a, *(INT2PTR(mpfi_t *, SvIV(SvRV(b)))));
          if(ret > 0) return newSViv(1);
          return newSViv(0);
-         }
        }
+     }
 
      croak("%s", "Invalid argument supplied to Math::MPFI::overload_gt");
 }
@@ -1467,54 +1520,34 @@ SV * overload_lt(pTHX_ mpfi_t * a, SV * b, SV * third) {
 
      if(mpfi_nan_p(*a)) return newSViv(0);
 
-#ifndef USE_64_BIT_INT
+#ifndef MATH_MPFI_NEED_LONG_LONG_INT
      if(SvUOK(b)) {
        ret = mpfi_cmp_ui(*a, SvUV(b));
        if(third == &PL_sv_yes) ret *= -1;
        if(ret < 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(SvIOK(b)) {
        ret = mpfi_cmp_si(*a, SvIV(b));
        if(third == &PL_sv_yes) ret *= -1;
        if(ret < 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 #else
      if(SvUOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_uj(t, SvUV(b), __gmpfr_default_rounding_mode);
        ret = mpfi_cmp_fr(*a, t);
        if(third == &PL_sv_yes) ret *= -1;
        mpfr_clear(t);
        if(ret < 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(SvIOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_sj(t, SvIV(b), __gmpfr_default_rounding_mode);
-       ret = mpfi_cmp_fr(*a, t);
-       if(third == &PL_sv_yes) ret *= -1;
-       mpfr_clear(t);
-       if(ret < 0) return newSViv(1);
-       return newSViv(0);
-       }
-#endif
-
-#ifndef USE_LONG_DOUBLE
-     if(SvNOK(b)) {
-       if(SvNV(b) != SvNV(b)) return 0;
-       ret = mpfi_cmp_d(*a, SvNV(b));
-       if(third == &PL_sv_yes) ret *= -1;
-       if(ret < 0) return newSViv(1);
-       return newSViv(0);
-       }
-#else
-     if(SvNOK(b)) {
-       if(SvNV(b) != SvNV(b)) return 0;
-       mpfr_init_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
        ret = mpfi_cmp_fr(*a, t);
        if(third == &PL_sv_yes) ret *= -1;
        mpfr_clear(t);
@@ -1522,6 +1555,36 @@ SV * overload_lt(pTHX_ mpfi_t * a, SV * b, SV * third) {
        return newSViv(0);
      }
 #endif
+
+     if(SvNOK(b)) {
+       if(SvNV(b) != SvNV(b)) return 0;
+
+#ifndef USE_LONG_DOUBLE
+
+       ret = mpfi_cmp_d(*a, SvNV(b));
+       if(third == &PL_sv_yes) ret *= -1;
+
+#elif !defined(CAN_PASS_FLOAT128)
+
+       mpfr_init2(t, LDBL_MANT_DIG);
+       mpfr_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
+       ret = mpfi_cmp_fr(*a, t);
+       if(third == &PL_sv_yes) ret *= -1;
+       mpfr_clear(t);
+
+#else
+
+       mpfr_init2(t, FLT128_MANT_DIG);
+       mpfr_set_float128(t, SvNV(b), __gmpfr_default_rounding_mode);
+       ret = mpfi_cmp_fr(*a, t);
+       if(third == &PL_sv_yes) ret *= -1;
+       mpfr_clear(t);
+
+#endif
+
+       if(ret < 0) return newSViv(1);
+       return newSViv(0);
+   }
 
      if(SvPOK(b)) {
        if(mpfr_init_set_str(t, (char *)SvPV_nolen(b), 0, __gmpfr_default_rounding_mode))
@@ -1531,7 +1594,7 @@ SV * overload_lt(pTHX_ mpfi_t * a, SV * b, SV * third) {
        mpfr_clear(t);
        if(ret < 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(sv_isobject(b)) {
        const char *h = HvNAME(SvSTASH(SvRV(b)));
@@ -1539,8 +1602,8 @@ SV * overload_lt(pTHX_ mpfi_t * a, SV * b, SV * third) {
          ret = mpfi_cmp(*a, *(INT2PTR(mpfi_t *, SvIV(SvRV(b)))));
          if(ret < 0) return newSViv(1);
          return newSViv(0);
-         }
        }
+     }
 
      croak("%s", "Invalid argument supplied to Math::MPFI::overload_lt");
 }
@@ -1549,53 +1612,63 @@ SV * overload_equiv(pTHX_ mpfi_t * a, SV * b, SV * third) {
      mpfr_t t;
      int ret;
 
-#ifndef USE_64_BIT_INT
+#ifndef MATH_MPFI_NEED_LONG_LONG_INT
      if(SvUOK(b)) {
        ret = mpfi_cmp_ui(*a, SvUV(b));
        if(ret == 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(SvIOK(b)) {
        ret = mpfi_cmp_si(*a, SvIV(b));
        if(ret == 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 #else
      if(SvUOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_uj(t, SvUV(b), __gmpfr_default_rounding_mode);
        ret = mpfi_cmp_fr(*a, t);
        mpfr_clear(t);
        if(ret == 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(SvIOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_sj(t, SvIV(b), __gmpfr_default_rounding_mode);
-       ret = mpfi_cmp_fr(*a, t);
-       mpfr_clear(t);
-       if(ret == 0) return newSViv(1);
-       return newSViv(0);
-       }
-#endif
-
-#ifndef USE_LONG_DOUBLE
-     if(SvNOK(b)) {
-       ret = mpfi_cmp_d(*a, SvNV(b));
-       if(ret == 0) return newSViv(1);
-       return newSViv(0);
-       }
-#else
-     if(SvNOK(b)) {
-       mpfr_init_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
        ret = mpfi_cmp_fr(*a, t);
        mpfr_clear(t);
        if(ret == 0) return newSViv(1);
        return newSViv(0);
      }
 #endif
+
+     if(SvNOK(b)) {
+
+#ifndef USE_LONG_DOUBLE
+
+       ret = mpfi_cmp_d(*a, SvNV(b));
+
+#elif !defined(CAN_PASS_FLOAT128)
+
+       mpfr_init2(t, LDBL_MANT_DIG);
+       mpfr_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
+       ret = mpfi_cmp_fr(*a, t);
+       mpfr_clear(t);
+
+#else
+
+       mpfr_init2(t, FLT128_MANT_DIG);
+       mpfr_set_float128(t, SvNV(b), __gmpfr_default_rounding_mode);
+       ret = mpfi_cmp_fr(*a, t);
+       mpfr_clear(t);
+
+#endif
+
+       if(ret == 0) return newSViv(1);
+       return newSViv(0);
+   }
 
      if(SvPOK(b)) {
        if(mpfr_init_set_str(t, (char *)SvPV_nolen(b), 0, __gmpfr_default_rounding_mode))
@@ -1604,7 +1677,7 @@ SV * overload_equiv(pTHX_ mpfi_t * a, SV * b, SV * third) {
        mpfr_clear(t);
        if(ret == 0) return newSViv(1);
        return newSViv(0);
-       }
+     }
 
      if(sv_isobject(b)) {
        const char *h = HvNAME(SvSTASH(SvRV(b)));
@@ -1612,8 +1685,8 @@ SV * overload_equiv(pTHX_ mpfi_t * a, SV * b, SV * third) {
          ret = mpfi_cmp(*a, *(INT2PTR(mpfi_t *, SvIV(SvRV(b)))));
          if(ret == 0) return newSViv(1);
          return newSViv(0);
-         }
        }
+     }
 
      croak("%s", "Invalid argument supplied to Math::MPFI::overload_equiv");
 }
@@ -1631,47 +1704,58 @@ SV * overload_add(pTHX_ mpfi_t * a, SV * b, SV * third) {
      sv_setiv(obj, INT2PTR(IV,mpfi_t_obj));
      SvREADONLY_on(obj);
 
-#ifndef USE_64_BIT_INT
+#ifndef MATH_MPFI_NEED_LONG_LONG_INT
      if(SvUOK(b)) {
        mpfi_add_ui(*mpfi_t_obj, *a, SvUV(b));
        return obj_ref;
-       }
+     }
 
      if(SvIOK(b)) {
        mpfi_add_si(*mpfi_t_obj, *a, SvIV(b));
        return obj_ref;
-       }
+     }
 #else
      if(SvUOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_uj(t, SvUV(b), __gmpfr_default_rounding_mode);
        mpfi_add_fr(*mpfi_t_obj, *a, t);
        mpfr_clear(t);
        return obj_ref;
-       }
+     }
 
      if(SvIOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_sj(t, SvUV(b), __gmpfr_default_rounding_mode);
-       mpfi_add_fr(*mpfi_t_obj, *a, t);
-       mpfr_clear(t);
-       return obj_ref;
-       }
-#endif
-
-#ifndef USE_LONG_DOUBLE
-     if(SvNOK(b)) {
-       mpfi_add_d(*mpfi_t_obj, *a, SvNV(b));
-       return obj_ref;
-       }
-#else
-     if(SvNOK(b)) {
-       mpfr_init_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
        mpfi_add_fr(*mpfi_t_obj, *a, t);
        mpfr_clear(t);
        return obj_ref;
      }
 #endif
+
+     if(SvNOK(b)) {
+
+#ifndef USE_LONG_DOUBLE
+
+       mpfi_add_d(*mpfi_t_obj, *a, SvNV(b));
+
+#elif !defined(CAN_PASS_FLOAT128)
+
+       mpfr_init2(t, LDBL_MANT_DIG);
+       mpfr_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
+       mpfi_add_fr(*mpfi_t_obj, *a, t);
+       mpfr_clear(t);
+
+#else
+
+       mpfr_init2(t, FLT128_MANT_DIG);
+       mpfr_set_float128(t, SvNV(b), __gmpfr_default_rounding_mode);
+       mpfi_add_fr(*mpfi_t_obj, *a, t);
+       mpfr_clear(t);
+
+#endif
+
+       return obj_ref;
+     }
 
      if(SvPOK(b)) {
        if(mpfr_init_set_str(t, (char *)SvPV_nolen(b), 0, __gmpfr_default_rounding_mode))
@@ -1679,15 +1763,15 @@ SV * overload_add(pTHX_ mpfi_t * a, SV * b, SV * third) {
        mpfi_add_fr(*mpfi_t_obj, *a, t);
        mpfr_clear(t);
        return obj_ref;
-       }
+     }
 
      if(sv_isobject(b)) {
        const char *h = HvNAME(SvSTASH(SvRV(b)));
        if(strEQ(h, "Math::MPFI")) {
          mpfi_add(*mpfi_t_obj, *a, *(INT2PTR(mpfi_t *, SvIV(SvRV(b)))));
          return obj_ref;
-         }
        }
+     }
 
      croak("%s", "Invalid argument supplied to Math::MPFI::overload_add");
 }
@@ -1705,47 +1789,58 @@ SV * overload_mul(pTHX_ mpfi_t * a, SV * b, SV * third) {
      sv_setiv(obj, INT2PTR(IV,mpfi_t_obj));
      SvREADONLY_on(obj);
 
-#ifndef USE_64_BIT_INT
+#ifndef MATH_MPFI_NEED_LONG_LONG_INT
      if(SvUOK(b)) {
        mpfi_mul_ui(*mpfi_t_obj, *a, SvUV(b));
        return obj_ref;
-       }
+     }
 
      if(SvIOK(b)) {
        mpfi_mul_si(*mpfi_t_obj, *a, SvIV(b));
        return obj_ref;
-       }
+     }
 #else
      if(SvUOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_uj(t, SvUV(b), __gmpfr_default_rounding_mode);
        mpfi_mul_fr(*mpfi_t_obj, *a, t);
        mpfr_clear(t);
        return obj_ref;
-       }
+     }
 
      if(SvIOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_sj(t, SvUV(b), __gmpfr_default_rounding_mode);
-       mpfi_mul_fr(*mpfi_t_obj, *a, t);
-       mpfr_clear(t);
-       return obj_ref;
-       }
-#endif
-
-#ifndef USE_LONG_DOUBLE
-     if(SvNOK(b)) {
-       mpfi_mul_d(*mpfi_t_obj, *a, SvNV(b));
-       return obj_ref;
-       }
-#else
-     if(SvNOK(b)) {
-       mpfr_init_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
        mpfi_mul_fr(*mpfi_t_obj, *a, t);
        mpfr_clear(t);
        return obj_ref;
      }
 #endif
+
+     if(SvNOK(b)) {
+
+#ifndef USE_LONG_DOUBLE
+
+       mpfi_mul_d(*mpfi_t_obj, *a, SvNV(b));
+
+#elif !defined(CAN_PASS_FLOAT128)
+
+       mpfr_init2(t, LDBL_MANT_DIG);
+       mpfr_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
+       mpfi_mul_fr(*mpfi_t_obj, *a, t);
+       mpfr_clear(t);
+
+#else
+
+       mpfr_init2(t, FLT128_MANT_DIG);
+       mpfr_set_float128(t, SvNV(b), __gmpfr_default_rounding_mode);
+       mpfi_mul_fr(*mpfi_t_obj, *a, t);
+       mpfr_clear(t);
+
+#endif
+
+       return obj_ref;
+     }
 
      if(SvPOK(b)) {
        if(mpfr_init_set_str(t, (char *)SvPV_nolen(b), 0, __gmpfr_default_rounding_mode))
@@ -1753,15 +1848,15 @@ SV * overload_mul(pTHX_ mpfi_t * a, SV * b, SV * third) {
        mpfi_mul_fr(*mpfi_t_obj, *a, t);
        mpfr_clear(t);
        return obj_ref;
-       }
+     }
 
      if(sv_isobject(b)) {
        const char *h = HvNAME(SvSTASH(SvRV(b)));
        if(strEQ(h, "Math::MPFI")) {
          mpfi_mul(*mpfi_t_obj, *a, *(INT2PTR(mpfi_t *, SvIV(SvRV(b)))));
          return obj_ref;
-         }
        }
+     }
 
      croak("%s", "Invalid argument supplied to Math::MPFI::overload_mul");
 }
@@ -1779,53 +1874,65 @@ SV * overload_sub(pTHX_ mpfi_t * a, SV * b, SV * third) {
      sv_setiv(obj, INT2PTR(IV,mpfi_t_obj));
      SvREADONLY_on(obj);
 
-#ifndef USE_64_BIT_INT
+#ifndef MATH_MPFI_NEED_LONG_LONG_INT
      if(SvUOK(b)) {
        if(third == &PL_sv_yes) mpfi_ui_sub(*mpfi_t_obj, SvUV(b), *a);
        else mpfi_sub_ui(*mpfi_t_obj, *a, SvUV(b));
        return obj_ref;
-       }
+     }
 
      if(SvIOK(b)) {
        if(third == &PL_sv_yes) mpfi_si_sub(*mpfi_t_obj, SvIV(b), *a);
        else mpfi_sub_si(*mpfi_t_obj, *a, SvIV(b));
        return obj_ref;
-       }
+     }
 #else
      if(SvUOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_uj(t, SvUV(b), __gmpfr_default_rounding_mode);
        if(third == &PL_sv_yes) mpfi_fr_sub(*mpfi_t_obj, t, *a);
        else mpfi_sub_fr(*mpfi_t_obj, *a, t);
        mpfr_clear(t);
        return obj_ref;
-       }
+     }
 
      if(SvIOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_sj(t, SvUV(b), __gmpfr_default_rounding_mode);
-       if(third == &PL_sv_yes) mpfi_fr_sub(*mpfi_t_obj, t, *a);
-       else mpfi_sub_fr(*mpfi_t_obj, *a, t);
-       mpfr_clear(t);
-       return obj_ref;
-       }
-#endif
-
-#ifndef USE_LONG_DOUBLE
-     if(SvNOK(b)) {
-       if(third == &PL_sv_yes) mpfi_d_sub(*mpfi_t_obj, SvNV(b), *a);
-       else mpfi_sub_d(*mpfi_t_obj, *a, SvNV(b));
-       return obj_ref;
-       }
-#else
-     if(SvNOK(b)) {
-       mpfr_init_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
        if(third == &PL_sv_yes) mpfi_fr_sub(*mpfi_t_obj, t, *a);
        else mpfi_sub_fr(*mpfi_t_obj, *a, t);
        mpfr_clear(t);
        return obj_ref;
      }
 #endif
+
+     if(SvNOK(b)) {
+
+#ifndef USE_LONG_DOUBLE
+
+       if(third == &PL_sv_yes) mpfi_d_sub(*mpfi_t_obj, SvNV(b), *a);
+       else mpfi_sub_d(*mpfi_t_obj, *a, SvNV(b));
+
+#elif !defined(CAN_PASS_FLOAT128)
+
+       mpfr_init2(t, LDBL_MANT_DIG);
+       mpfr_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
+       if(third == &PL_sv_yes) mpfi_fr_sub(*mpfi_t_obj, t, *a);
+       else mpfi_sub_fr(*mpfi_t_obj, *a, t);
+       mpfr_clear(t);
+
+#else
+
+       mpfr_init2(t, FLT128_MANT_DIG);
+       mpfr_set_float128(t, SvNV(b), __gmpfr_default_rounding_mode);
+       if(third == &PL_sv_yes) mpfi_fr_sub(*mpfi_t_obj, t, *a);
+       else mpfi_sub_fr(*mpfi_t_obj, *a, t);
+       mpfr_clear(t);
+
+#endif
+
+       return obj_ref;
+     }
 
      if(SvPOK(b)) {
        if(mpfr_init_set_str(t, (char *)SvPV_nolen(b), 0, __gmpfr_default_rounding_mode))
@@ -1834,15 +1941,15 @@ SV * overload_sub(pTHX_ mpfi_t * a, SV * b, SV * third) {
        else mpfi_sub_fr(*mpfi_t_obj, *a, t);
        mpfr_clear(t);
        return obj_ref;
-       }
+     }
 
      if(sv_isobject(b)) {
        const char *h = HvNAME(SvSTASH(SvRV(b)));
        if(strEQ(h, "Math::MPFI")) {
          mpfi_sub(*mpfi_t_obj, *a, *(INT2PTR(mpfi_t *, SvIV(SvRV(b)))));
          return obj_ref;
-         }
        }
+     }
 
      croak("%s", "Invalid argument supplied to Math::MPFI::overload_sub");
 }
@@ -1860,53 +1967,65 @@ SV * overload_div(pTHX_ mpfi_t * a, SV * b, SV * third) {
      sv_setiv(obj, INT2PTR(IV,mpfi_t_obj));
      SvREADONLY_on(obj);
 
-#ifndef USE_64_BIT_INT
+#ifndef MATH_MPFI_NEED_LONG_LONG_INT
      if(SvUOK(b)) {
        if(third == &PL_sv_yes) mpfi_ui_div(*mpfi_t_obj, SvUV(b), *a);
        else mpfi_div_ui(*mpfi_t_obj, *a, SvUV(b));
        return obj_ref;
-       }
+     }
 
      if(SvIOK(b)) {
        if(third == &PL_sv_yes) mpfi_si_div(*mpfi_t_obj, SvIV(b), *a);
        else mpfi_div_si(*mpfi_t_obj, *a, SvIV(b));
        return obj_ref;
-       }
+     }
 #else
      if(SvUOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_uj(t, SvUV(b), __gmpfr_default_rounding_mode);
        if(third == &PL_sv_yes) mpfi_fr_div(*mpfi_t_obj, t, *a);
        else mpfi_div_fr(*mpfi_t_obj, *a, t);
        mpfr_clear(t);
        return obj_ref;
-       }
+     }
 
      if(SvIOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_sj(t, SvUV(b), __gmpfr_default_rounding_mode);
-       if(third == &PL_sv_yes) mpfi_fr_div(*mpfi_t_obj, t, *a);
-       else mpfi_div_fr(*mpfi_t_obj, *a, t);
-       mpfr_clear(t);
-       return obj_ref;
-       }
-#endif
-
-#ifndef USE_LONG_DOUBLE
-     if(SvNOK(b)) {
-       if(third == &PL_sv_yes) mpfi_d_div(*mpfi_t_obj, SvNV(b), *a);
-       else mpfi_div_d(*mpfi_t_obj, *a, SvNV(b));
-       return obj_ref;
-       }
-#else
-     if(SvNOK(b)) {
-       mpfr_init_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
        if(third == &PL_sv_yes) mpfi_fr_div(*mpfi_t_obj, t, *a);
        else mpfi_div_fr(*mpfi_t_obj, *a, t);
        mpfr_clear(t);
        return obj_ref;
      }
 #endif
+
+     if(SvNOK(b)) {
+
+#ifndef USE_LONG_DOUBLE
+
+       if(third == &PL_sv_yes) mpfi_d_div(*mpfi_t_obj, SvNV(b), *a);
+       else mpfi_div_d(*mpfi_t_obj, *a, SvNV(b));
+
+#elif !defined(CAN_PASS_FLOAT128)
+
+       mpfr_init2(t, LDBL_MANT_DIG);
+       mpfr_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
+       if(third == &PL_sv_yes) mpfi_fr_div(*mpfi_t_obj, t, *a);
+       else mpfi_div_fr(*mpfi_t_obj, *a, t);
+       mpfr_clear(t);
+
+#else
+
+       mpfr_init2(t, FLT128_MANT_DIG);
+       mpfr_set_float128(t, SvNV(b), __gmpfr_default_rounding_mode);
+       if(third == &PL_sv_yes) mpfi_fr_div(*mpfi_t_obj, t, *a);
+       else mpfi_div_fr(*mpfi_t_obj, *a, t);
+       mpfr_clear(t);
+
+#endif
+
+       return obj_ref;
+     }
 
      if(SvPOK(b)) {
        if(mpfr_init_set_str(t, (char *)SvPV_nolen(b), 0, __gmpfr_default_rounding_mode))
@@ -1915,15 +2034,15 @@ SV * overload_div(pTHX_ mpfi_t * a, SV * b, SV * third) {
        else mpfi_div_fr(*mpfi_t_obj, *a, t);
        mpfr_clear(t);
        return obj_ref;
-       }
+     }
 
      if(sv_isobject(b)) {
        const char *h = HvNAME(SvSTASH(SvRV(b)));
        if(strEQ(h, "Math::MPFI")) {
          mpfi_div(*mpfi_t_obj, *a, *(INT2PTR(mpfi_t *, SvIV(SvRV(b)))));
          return obj_ref;
-         }
        }
+     }
 
      croak("%s", "Invalid argument supplied to Math::MPFI::overload_div");
 }
@@ -1933,47 +2052,58 @@ SV * overload_add_eq(pTHX_ SV * a, SV * b, SV * third) {
 
      SvREFCNT_inc(a);
 
-#ifndef USE_64_BIT_INT
+#ifndef MATH_MPFI_NEED_LONG_LONG_INT
      if(SvUOK(b)) {
        mpfi_add_ui(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvUV(b));
        return a;
-       }
+     }
 
      if(SvIOK(b)) {
        mpfi_add_si(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvIV(b));
        return a;
-       }
+     }
 #else
      if(SvUOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_uj(t, SvUV(b), __gmpfr_default_rounding_mode);
        mpfi_add_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
        mpfr_clear(t);
        return a;
-       }
+     }
 
      if(SvIOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_sj(t, SvUV(b), __gmpfr_default_rounding_mode);
-       mpfi_add_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
-       mpfr_clear(t);
-       return a;
-       }
-#endif
-
-#ifndef USE_LONG_DOUBLE
-     if(SvNOK(b)) {
-       mpfi_add_d(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvNV(b));
-       return a;
-       }
-#else
-     if(SvNOK(b)) {
-       mpfr_init_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
        mpfi_add_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
        mpfr_clear(t);
        return a;
      }
 #endif
+
+     if(SvNOK(b)) {
+
+#ifndef USE_LONG_DOUBLE
+
+       mpfi_add_d(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvNV(b));
+
+#elif !defined(CAN_PASS_FLOAT128)
+
+       mpfr_init2(t, LDBL_MANT_DIG);
+       mpfr_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
+       mpfi_add_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
+       mpfr_clear(t);
+
+#else
+
+       mpfr_init2(t, FLT128_MANT_DIG);
+       mpfr_set_float128(t, SvNV(b), __gmpfr_default_rounding_mode);
+       mpfi_add_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
+       mpfr_clear(t);
+
+#endif
+
+       return a;
+     }
 
      if(SvPOK(b)) {
        if(mpfr_init_set_str(t, (char *)SvPV_nolen(b), 0, __gmpfr_default_rounding_mode)) {
@@ -1983,17 +2113,17 @@ SV * overload_add_eq(pTHX_ SV * a, SV * b, SV * third) {
        mpfi_add_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
        mpfr_clear(t);
        return a;
-       }
+     }
 
      if(sv_isobject(b)) {
        const char *h = HvNAME(SvSTASH(SvRV(b)));
        if(strEQ(h, "Math::MPFI")) {
          mpfi_add(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(b)))));
          return a;
-         }
        }
+     }
 
-     SvREFCNT_dec(a);
+     SvREFCNT_dec(a);     
      croak("%s", "Invalid argument supplied to Math::MPFI::overload_add_eq");
 }
 
@@ -2002,47 +2132,58 @@ SV * overload_mul_eq(pTHX_ SV * a, SV * b, SV * third) {
 
      SvREFCNT_inc(a);
 
-#ifndef USE_64_BIT_INT
+#ifndef MATH_MPFI_NEED_LONG_LONG_INT
      if(SvUOK(b)) {
        mpfi_mul_ui(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvUV(b));
        return a;
-       }
+     }
 
      if(SvIOK(b)) {
        mpfi_mul_si(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvIV(b));
        return a;
-       }
+     }
 #else
      if(SvUOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_uj(t, SvUV(b), __gmpfr_default_rounding_mode);
        mpfi_mul_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
        mpfr_clear(t);
        return a;
-       }
+     }
 
      if(SvIOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_sj(t, SvUV(b), __gmpfr_default_rounding_mode);
-       mpfi_mul_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
-       mpfr_clear(t);
-       return a;
-       }
-#endif
-
-#ifndef USE_LONG_DOUBLE
-     if(SvNOK(b)) {
-       mpfi_mul_d(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvNV(b));
-       return a;
-       }
-#else
-     if(SvNOK(b)) {
-       mpfr_init_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
        mpfi_mul_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
        mpfr_clear(t);
        return a;
      }
 #endif
+
+     if(SvNOK(b)) {
+
+#ifndef USE_LONG_DOUBLE
+
+       mpfi_mul_d(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvNV(b));
+
+#elif !defined(CAN_PASS_FLOAT128)
+
+       mpfr_init2(t, LDBL_MANT_DIG);
+       mpfr_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
+       mpfi_mul_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
+       mpfr_clear(t);
+
+#else
+
+       mpfr_init2(t, FLT128_MANT_DIG);
+       mpfr_set_float128(t, SvNV(b), __gmpfr_default_rounding_mode);
+       mpfi_mul_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
+       mpfr_clear(t);
+
+#endif
+
+       return a;
+     }
 
      if(SvPOK(b)) {
        if(mpfr_init_set_str(t, (char *)SvPV_nolen(b), 0, __gmpfr_default_rounding_mode)) {
@@ -2052,17 +2193,17 @@ SV * overload_mul_eq(pTHX_ SV * a, SV * b, SV * third) {
        mpfi_mul_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
        mpfr_clear(t);
        return a;
-       }
+     }
 
      if(sv_isobject(b)) {
        const char *h = HvNAME(SvSTASH(SvRV(b)));
        if(strEQ(h, "Math::MPFI")) {
          mpfi_mul(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(b)))));
          return a;
-         }
        }
+     }
 
-     SvREFCNT_dec(a);
+     SvREFCNT_dec(a);     
      croak("%s", "Invalid argument supplied to Math::MPFI::overload_mul_eq");
 }
 
@@ -2071,47 +2212,58 @@ SV * overload_sub_eq(pTHX_ SV * a, SV * b, SV * third) {
 
      SvREFCNT_inc(a);
 
-#ifndef USE_64_BIT_INT
+#ifndef MATH_MPFI_NEED_LONG_LONG_INT
      if(SvUOK(b)) {
        mpfi_sub_ui(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvUV(b));
        return a;
-       }
+     }
 
      if(SvIOK(b)) {
        mpfi_sub_si(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvIV(b));
        return a;
-       }
+     }
 #else
      if(SvUOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_uj(t, SvUV(b), __gmpfr_default_rounding_mode);
        mpfi_sub_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
        mpfr_clear(t);
        return a;
-       }
+     }
 
      if(SvIOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_sj(t, SvUV(b), __gmpfr_default_rounding_mode);
-       mpfi_sub_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
-       mpfr_clear(t);
-       return a;
-       }
-#endif
-
-#ifndef USE_LONG_DOUBLE
-     if(SvNOK(b)) {
-       mpfi_sub_d(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvNV(b));
-       return a;
-       }
-#else
-     if(SvNOK(b)) {
-       mpfr_init_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
        mpfi_sub_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
        mpfr_clear(t);
        return a;
      }
 #endif
+
+     if(SvNOK(b)) {
+
+#ifndef USE_LONG_DOUBLE
+
+       mpfi_sub_d(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvNV(b));
+
+#elif !defined(CAN_PASS_FLOAT128)
+
+       mpfr_init2(t, LDBL_MANT_DIG);
+       mpfr_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
+       mpfi_sub_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
+       mpfr_clear(t);
+
+#else
+
+       mpfr_init2(t, FLT128_MANT_DIG);
+       mpfr_set_float128(t, SvNV(b), __gmpfr_default_rounding_mode);
+       mpfi_sub_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
+       mpfr_clear(t);
+
+#endif
+
+       return a;
+     }
 
      if(SvPOK(b)) {
        if(mpfr_init_set_str(t, (char *)SvPV_nolen(b), 0, __gmpfr_default_rounding_mode)) {
@@ -2121,17 +2273,17 @@ SV * overload_sub_eq(pTHX_ SV * a, SV * b, SV * third) {
        mpfi_sub_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
        mpfr_clear(t);
        return a;
-       }
+     }
 
      if(sv_isobject(b)) {
        const char *h = HvNAME(SvSTASH(SvRV(b)));
        if(strEQ(h, "Math::MPFI")) {
          mpfi_sub(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(b)))));
          return a;
-         }
        }
+     }
 
-     SvREFCNT_dec(a);
+     SvREFCNT_dec(a);     
      croak("%s", "Invalid argument supplied to Math::MPFI::overload_sub_eq");
 }
 
@@ -2140,47 +2292,58 @@ SV * overload_div_eq(pTHX_ SV * a, SV * b, SV * third) {
 
      SvREFCNT_inc(a);
 
-#ifndef USE_64_BIT_INT
+#ifndef MATH_MPFI_NEED_LONG_LONG_INT
      if(SvUOK(b)) {
        mpfi_div_ui(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvUV(b));
        return a;
-       }
+     }
 
      if(SvIOK(b)) {
        mpfi_div_si(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvIV(b));
        return a;
-       }
+     }
 #else
      if(SvUOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_uj(t, SvUV(b), __gmpfr_default_rounding_mode);
        mpfi_div_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
        mpfr_clear(t);
        return a;
-       }
+     }
 
      if(SvIOK(b)) {
-       mpfr_init(t);
+       mpfr_init2(t, IVSIZE_BITS);
        mpfr_set_sj(t, SvUV(b), __gmpfr_default_rounding_mode);
-       mpfi_div_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
-       mpfr_clear(t);
-       return a;
-       }
-#endif
-
-#ifndef USE_LONG_DOUBLE
-     if(SvNOK(b)) {
-       mpfi_div_d(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvNV(b));
-       return a;
-       }
-#else
-     if(SvNOK(b)) {
-       mpfr_init_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
        mpfi_div_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
        mpfr_clear(t);
        return a;
      }
 #endif
+
+     if(SvNOK(b)) {
+
+#ifndef USE_LONG_DOUBLE
+
+       mpfi_div_d(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), SvNV(b));
+
+#elif !defined(CAN_PASS_FLOAT128)
+
+       mpfr_init2(t, LDBL_MANT_DIG);
+       mpfr_set_ld(t, SvNV(b), __gmpfr_default_rounding_mode);
+       mpfi_div_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
+       mpfr_clear(t);
+
+#else
+
+       mpfr_init2(t, FLT128_MANT_DIG);
+       mpfr_set_float128(t, SvNV(b), __gmpfr_default_rounding_mode);
+       mpfi_div_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
+       mpfr_clear(t);
+
+#endif
+
+       return a;
+     }
 
      if(SvPOK(b)) {
        if(mpfr_init_set_str(t, (char *)SvPV_nolen(b), 0, __gmpfr_default_rounding_mode)) {
@@ -2190,17 +2353,17 @@ SV * overload_div_eq(pTHX_ SV * a, SV * b, SV * third) {
        mpfi_div_fr(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), t);
        mpfr_clear(t);
        return a;
-       }
+     }
 
      if(sv_isobject(b)) {
        const char *h = HvNAME(SvSTASH(SvRV(b)));
        if(strEQ(h, "Math::MPFI")) {
          mpfi_div(*(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(a)))), *(INT2PTR(mpfi_t *, SvIV(SvRV(b)))));
          return a;
-         }
        }
+     }
 
-     SvREFCNT_dec(a);
+     SvREFCNT_dec(a);     
      croak("%s", "Invalid argument supplied to Math::MPFI::overload_div_eq");
 }
 
@@ -2279,7 +2442,7 @@ SV * overload_not(pTHX_ mpfi_t * op, SV * second, SV * third) {
      if(mpfi_nan_p(*op)) return newSViv(1);
      return newSViv(0);
 }
-
+     
 SV * overload_abs(pTHX_ mpfi_t * op, SV * second, SV * third) {
      mpfi_t * mpfi_t_obj;
      SV * obj_ref, * obj;
@@ -2371,98 +2534,111 @@ SV * overload_atan2(pTHX_ mpfi_t * a, SV * b, SV * third) {
      obj = newSVrv(obj_ref, "Math::MPFI");
      mpfi_init(*mpfi_t_obj);
 
-#ifdef USE_64_BIT_INT
+#ifdef MATH_MPFI_NEED_LONG_LONG_INT
      if(SvUOK(b)) {
-       mpfr_init(tr);
+       mpfr_init2(tr, IVSIZE_BITS);
        mpfr_set_uj(tr, SvUV(b), __gmpfr_default_rounding_mode);
        mpfi_set_fr(*mpfi_t_obj, tr);
        mpfr_clear(tr);
        if(third == &PL_sv_yes){
          mpfi_atan2(*mpfi_t_obj, *mpfi_t_obj, *a);
-         }
+       }
        else {
          mpfi_atan2(*mpfi_t_obj, *a, *mpfi_t_obj);
-         }
+       }
        sv_setiv(obj, INT2PTR(IV,mpfi_t_obj));
        SvREADONLY_on(obj);
        return obj_ref;
-       }
+     }
 
      if(SvIOK(b)) {
-       mpfr_init(tr);
+       mpfr_init2(tr, IVSIZE_BITS);
        mpfr_set_sj(tr, SvIV(b), __gmpfr_default_rounding_mode);
        mpfi_set_fr(*mpfi_t_obj, tr);
        mpfr_clear(tr);
        if(third == &PL_sv_yes){
          mpfi_atan2(*mpfi_t_obj, *mpfi_t_obj, *a);
-         }
+       }
        else {
          mpfi_atan2(*mpfi_t_obj, *a, *mpfi_t_obj);
-         }
+       }
        sv_setiv(obj, INT2PTR(IV,mpfi_t_obj));
        SvREADONLY_on(obj);
        return obj_ref;
-       }
+     }
 #else
      if(SvUOK(b)) {
        mpfi_set_ui(*mpfi_t_obj, SvUV(b));
        if(third == &PL_sv_yes){
          mpfi_atan2(*mpfi_t_obj, *mpfi_t_obj, *a);
-         }
+       }
        else {
          mpfi_atan2(*mpfi_t_obj, *a, *mpfi_t_obj);
-         }
+       }
        sv_setiv(obj, INT2PTR(IV,mpfi_t_obj));
        SvREADONLY_on(obj);
        return obj_ref;
-       }
+     }
 
      if(SvIOK(b)) {
        mpfi_set_si(*mpfi_t_obj, SvIV(b));
        if(third == &PL_sv_yes){
          mpfi_atan2(*mpfi_t_obj, *mpfi_t_obj, *a);
-         }
+       }
        else {
          mpfi_atan2(*mpfi_t_obj, *a, *mpfi_t_obj);
-         }
+       }
        sv_setiv(obj, INT2PTR(IV,mpfi_t_obj));
        SvREADONLY_on(obj);
        return obj_ref;
-       }
+     }
 #endif
 
      if(SvNOK(b)) {
-#ifdef USE_LONG_DOUBLE
-       mpfr_init_set_ld(tr, SvNV(b), __gmpfr_default_rounding_mode);
+
+#ifndef USE_LONG_DOUBLE
+
+       mpfi_set_d(*mpfi_t_obj, SvNV(b));
+
+#elif !defined(CAN_PASS_FLOAT128)
+
+       mpfr_init2(tr, LDBL_MANT_DIG);
+       mpfr_set_ld(tr, SvNV(b), __gmpfr_default_rounding_mode);
        mpfi_set_fr(*mpfi_t_obj, tr);
        mpfr_clear(tr);
+
 #else
-       mpfi_set_d(*mpfi_t_obj, SvNV(b));
+
+       mpfr_init2(tr, FLT128_MANT_DIG);
+       mpfr_set_float128(tr, SvNV(b), __gmpfr_default_rounding_mode);
+       mpfi_set_fr(*mpfi_t_obj, tr);
+       mpfr_clear(tr);
+
 #endif
        if(third == &PL_sv_yes){
          mpfi_atan2(*mpfi_t_obj, *mpfi_t_obj, *a);
-         }
+       }
        else {
          mpfi_atan2(*mpfi_t_obj, *a, *mpfi_t_obj);
-         }
+       }
        sv_setiv(obj, INT2PTR(IV,mpfi_t_obj));
        SvREADONLY_on(obj);
        return obj_ref;
-       }
+     }
 
      if(SvPOK(b)) {
        if(mpfi_set_str(*mpfi_t_obj, SvPV_nolen(b), 10))
          croak("Invalid string supplied to Math::MPFI::overload_atan2");
        if(third == &PL_sv_yes){
          mpfi_atan2(*mpfi_t_obj, *mpfi_t_obj, *a);
-         }
+       }
        else {
          mpfi_atan2(*mpfi_t_obj, *a, *mpfi_t_obj);
-         }
+       }
        sv_setiv(obj, INT2PTR(IV,mpfi_t_obj));
        SvREADONLY_on(obj);
        return obj_ref;
-       }
+     }
 
      if(sv_isobject(b)) {
        const char *h = HvNAME(SvSTASH(SvRV(b)));
@@ -2471,8 +2647,8 @@ SV * overload_atan2(pTHX_ mpfi_t * a, SV * b, SV * third) {
          sv_setiv(obj, INT2PTR(IV,mpfi_t_obj));
          SvREADONLY_on(obj);
          return obj_ref;
-         }
        }
+     }
 
      croak("Invalid argument supplied to Math::MPFI::overload_atan2 function");
 }
@@ -2492,7 +2668,7 @@ SV * _MPFI_VERSION_MINOR(pTHX) {
      croak("MPFI_VERSION_MINOR not defined in mpfi.h until mpfi-1.5.1. Library version is %s", mpfi_get_version());
 #endif
 }
-
+  
 SV * _MPFI_VERSION_PATCHLEVEL(pTHX) {
 #ifdef MPFI_VERSION_PATCHLEVEL
      return newSVuv(MPFI_VERSION_PATCHLEVEL);
@@ -2516,22 +2692,36 @@ SV * _wrap_count(pTHX) {
 SV * _get_xs_version(pTHX) {
      return newSVpv(XS_VERSION, 0);
 }
-MODULE = Math::MPFI  PACKAGE = Math::MPFI
+
+int _can_pass_float128(void) {
+
+#ifdef CAN_PASS_FLOAT128
+   return 1;
+#else
+   return 0;
+#endif
+
+}
+MODULE = Math::MPFI  PACKAGE = Math::MPFI  
 
 PROTOTYPES: DISABLE
 
 
 int
 _has_inttypes ()
-
+		
 
 int
 _has_longlong ()
-
+		
 
 int
 _has_longdouble ()
+		
 
+int
+_ivsize_bits ()
+		
 
 SV *
 RMPFI_BOTH_ARE_EXACT (ret)
@@ -3831,7 +4021,7 @@ RMPFI_ERROR (msg)
 
 int
 Rmpfi_is_error ()
-
+		
 
 void
 Rmpfi_set_error (op)
@@ -3851,7 +4041,7 @@ Rmpfi_set_error (op)
 
 void
 Rmpfi_reset_error ()
-
+		
         PREINIT:
         I32* temp;
         PPCODE:
@@ -4201,4 +4391,8 @@ CODE:
   RETVAL = _get_xs_version (aTHX);
 OUTPUT:  RETVAL
 
+
+int
+_can_pass_float128 ()
+		
 
